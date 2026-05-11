@@ -1,0 +1,14 @@
+{
+  "productName": "1984",
+  "companyName": "Organization",
+  "dataDirectory": "%APPDATA%\\1984",
+  "activeWindowPollIntervalSeconds": 2,
+  "screenshotIntervalSeconds": 300,
+  "idleThresholdSeconds": 180,
+  "browserReceiverPort": 39877,
+  "retentionDays": 90,
+  "allowExitWithoutPassword": true,
+  "exitPasswordHashBase64": null,
+  "exitPasswordSaltBase64": null,
+  "exitPasswordIterations": 100000
+}
