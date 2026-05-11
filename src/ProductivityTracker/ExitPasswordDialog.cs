@@ -9,9 +9,9 @@ internal sealed class ExitPasswordDialog : Form
 
     public string Password => _passwordBox.Text;
 
-    public ExitPasswordDialog(string productName)
+    public ExitPasswordDialog(string productName, string actionName)
     {
-        Text = $"Exit {productName}";
+        Text = productName;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MinimizeBox = false;
@@ -21,7 +21,7 @@ internal sealed class ExitPasswordDialog : Form
 
         var label = new Label
         {
-            Text = "Enter exit password:",
+            Text = $"Enter password to {actionName}:",
             AutoSize = true,
             Left = 16,
             Top = 18
@@ -34,7 +34,7 @@ internal sealed class ExitPasswordDialog : Form
 
         var okButton = new Button
         {
-            Text = "Exit",
+            Text = "OK",
             DialogResult = DialogResult.OK,
             Left = 174,
             Width = 80,

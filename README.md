@@ -2,6 +2,8 @@
 
 Lightweight local-only Windows employee productivity tracker for Windows 10/11.
 
+1984 is designed to be quiet during normal employee work: no recurring popups, no repeated permission prompts, no browser heartbeat notifications, and no UAC prompt for normal per-user deployment.
+
 ## Scope
 
 The application is designed for simple corporate deployment and low maintenance:
@@ -15,6 +17,9 @@ The application is designed for simple corporate deployment and low maintenance:
 - readable daily HTML reports
 - optional current-user auto-start
 - SaltStack deployment example
+- password-protected local interface
+- quiet browser plugin heartbeat detection
+- configurable screenshot retention
 
 ## Explicit non-goals
 
@@ -33,6 +38,11 @@ This project intentionally does not implement:
 ## Responsible use
 
 This project is intended for transparent, lawful corporate use with employee notice and an internal policy. See `ETHICS.md` and `SECURITY.md` before deployment.
+
+See also:
+
+- `docs/product-concept.md` for the detailed product concept
+- `docs/product-ideas.md` for planned UX/security/reporting improvements
 
 ## Architecture
 
@@ -89,13 +99,45 @@ reports\report-YYYY-MM-DD.html
 - Win32 APIs through P/Invoke for foreground window and idle detection
 - `System.Drawing` via WinForms for screenshots on Windows
 
-## Build
+## Requirements
+
+### Development machine
+
+- Windows 10/11
+- Git for Windows
+- .NET 8 SDK
+- Visual Studio 2022 or another editor with .NET support
+- Chrome or Edge for browser extension testing
+
+### Target employee machine
+
+If published as a self-contained single EXE:
+
+- Windows 10/11
+- no .NET runtime installation required
+- no admin rights required for per-user install
+- Chrome or Edge extension only if full URL/tab history is required
+
+If running a framework-dependent build:
+
+- Windows 10/11
+- .NET 8 Desktop Runtime
+
+Normal recommended deployment is self-contained single EXE.
+
+## Local development
 
 Install .NET 8 SDK, then run:
 
 ```powershell
 dotnet restore g:\AI\ProductivityTracker\ProductivityTracker.sln
 dotnet build g:\AI\ProductivityTracker\ProductivityTracker.sln -c Release
+```
+
+Run from source:
+
+```powershell
+dotnet run --project g:\AI\ProductivityTracker\src\ProductivityTracker\ProductivityTracker.csproj
 ```
 
 ## Publish single EXE
@@ -127,9 +169,37 @@ It sends this metadata to:
 http://127.0.0.1:39877/browser-activity
 ```
 
+The extension should also send a silent heartbeat so the desktop app can show whether full browser tracking is available. The heartbeat must not display notifications or interrupt the employee.
+
+If the extension is not installed, 1984 still records browser process usage through normal process/window tracking, but URL-level web history is limited. The UI should show this only inside the password-protected application, not as a popup.
+
+## Application UI
+
+The tray icon has two primary actions:
+
+- `Open application`
+- `Close 1984`
+
+Both actions require the local access password.
+
+The main UI should be human-readable and suitable for quick review:
+
+- **Dashboard**: status cards such as `Chrome was opened at 09:12, closed at 10:04, total 52 minutes`.
+- **Processes**: process history with start time, end time, duration, user, process name, executable path, and window title.
+- **Web**: browser history with user, title, URL, tab start time, duration, browser, and source.
+- **Screenshots**: screenshot list and preview/open actions.
+- **Reports**: generate local HTML reports.
+- **Settings**: screenshot folder, screenshot interval, screenshot retention, password change, retention, browser status, and local folders.
+
+Recommended dashboard behavior:
+
+- clicking a Chrome/Edge status card opens the Web tab
+- clicking an application card opens the Processes tab filtered by that process
+- clicking screenshot status opens the Screenshots tab
+
 ## Reports
 
-Right-click the tray icon and select `Generate today's report`.
+Reports are generated from the password-protected application UI.
 
 The report includes:
 
@@ -172,13 +242,62 @@ Final layout:
 
 ## Exit password
 
-Tray exit can be password-protected. Generate a production config with:
+The local access password protects:
+
+- opening the application UI
+- closing the tray app
+- changing sensitive settings
+- changing the password
+
+On first launch, if no password exists, the app asks to create one. For managed deployment, generate a production config with:
 
 ```powershell
 g:\AI\ProductivityTracker\scripts\New-1984ExitPasswordConfig.ps1 -Password "change-me"
 ```
 
 The generated config stores PBKDF2 hash + salt, not the plain password. Do not deploy `1984.config.example.json` if password-protected exit is required.
+
+## Configuration
+
+Example config:
+
+```json
+{
+  "productName": "1984",
+  "companyName": "Organization",
+  "dataDirectory": "%APPDATA%\\1984",
+  "screenshotDirectory": "%APPDATA%\\1984\\screenshots",
+  "activeWindowPollIntervalSeconds": 2,
+  "screenshotIntervalSeconds": 300,
+  "idleThresholdSeconds": 180,
+  "browserReceiverPort": 39877,
+  "retentionDays": 90,
+  "screenshotRetentionDays": 30,
+  "quietMode": true,
+  "showNotifications": false,
+  "browserPluginHeartbeatIntervalSeconds": 60
+}
+```
+
+Important defaults:
+
+- `quietMode`: keeps normal operation silent.
+- `showNotifications`: should stay `false` for employee comfort.
+- `screenshotRetentionDays`: removes old screenshot files after the configured number of days.
+- `retentionDays`: controls activity database/report retention separately.
+
+## Quiet operation
+
+Normal employee experience should be:
+
+1. App starts with Windows.
+2. Tray icon is visible.
+3. No recurring popups are shown.
+4. No UAC prompt is shown for per-user deployment.
+5. Browser heartbeat runs silently in the background.
+6. Password prompt appears only when someone intentionally opens the UI or closes the app.
+
+Do not use scheduled tasks or install locations that require elevation unless your environment explicitly needs machine-wide deployment.
 
 ## SaltStack deployment
 
@@ -189,6 +308,17 @@ Recommended per-user executable location:
 ```text
 %LOCALAPPDATA%\Programs\1984\1984.exe
 ```
+
+Recommended deployment flow:
+
+1. Publish self-contained `1984.exe`.
+2. Generate production `1984.config.json`.
+3. Copy both files to `%LOCALAPPDATA%\Programs\1984` for the target user.
+4. Register HKCU auto-start.
+5. Deploy the browser extension through Chrome/Edge enterprise policies if URL-level web history is required.
+6. Validate that `%APPDATA%\1984` is created for runtime data.
+
+If Salt runs as `LocalSystem`, HKCU and `%LOCALAPPDATA%` may refer to the system profile. Use a user-context deployment mechanism for per-user installs.
 
 ## Antivirus-safe practices
 

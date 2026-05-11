@@ -2,6 +2,7 @@
   "productName": "1984",
   "companyName": "Organization",
   "dataDirectory": "%APPDATA%\\1984",
+  "screenshotDirectory": "%APPDATA%\\1984\\screenshots",
   "activeWindowPollIntervalSeconds": 2,
   "screenshotIntervalSeconds": 300,
   "idleThresholdSeconds": 180,

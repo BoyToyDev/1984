@@ -1,7 +1,7 @@
 using Microsoft.Win32;
+using ProductivityTracker.Data;
 using ProductivityTracker.Reports;
 using ProductivityTracker.Tracking;
-using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -10,23 +10,26 @@ namespace ProductivityTracker;
 internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly AppSettings _settings;
+    private readonly TrackerDatabase _database;
     private readonly ActivityTracker _activityTracker;
     private readonly BrowserActivityReceiver _browserReceiver;
     private readonly HtmlReportGenerator _reportGenerator;
-    private readonly ExitPasswordVerifier _exitPasswordVerifier;
+    private readonly ExitPasswordVerifier _passwordVerifier;
     private readonly NotifyIcon _notifyIcon;
 
     public TrayApplicationContext(
         AppSettings settings,
+        TrackerDatabase database,
         ActivityTracker activityTracker,
         BrowserActivityReceiver browserReceiver,
         HtmlReportGenerator reportGenerator)
     {
         _settings = settings;
+        _database = database;
         _activityTracker = activityTracker;
         _browserReceiver = browserReceiver;
         _reportGenerator = reportGenerator;
-        _exitPasswordVerifier = new ExitPasswordVerifier(settings);
+        _passwordVerifier = new ExitPasswordVerifier(settings);
 
         _notifyIcon = new NotifyIcon
         {
@@ -35,16 +38,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
+
+        _notifyIcon.DoubleClick += (_, _) => RequestOpenApplication();
+        EnableAutoStart();
     }
 
     private ContextMenuStrip BuildMenu()
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Generate today's report", null, (_, _) => _reportGenerator.OpenDailyReport(DateOnly.FromDateTime(DateTime.Now)));
-        menu.Items.Add("Open data folder", null, (_, _) => Process.Start(new ProcessStartInfo(_settings.DataDirectory) { UseShellExecute = true }));
-        menu.Items.Add("Enable auto-start", null, (_, _) => EnableAutoStart());
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => RequestExit());
+        menu.Items.Add("Open application", null, (_, _) => RequestOpenApplication());
+        menu.Items.Add("Close 1984", null, (_, _) => RequestExit());
         return menu;
     }
 
@@ -53,30 +56,47 @@ internal sealed class TrayApplicationContext : ApplicationContext
         var exePath = Application.ExecutablePath;
         using var key = Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Run", writable: true);
         key?.SetValue(_settings.ProductName, $"\"{exePath}\"");
-        MessageBox.Show("Auto-start enabled for current user.", _settings.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private void RequestOpenApplication()
+    {
+        if (!RequestPassword("open the application"))
+        {
+            return;
+        }
+
+        using var form = new MainForm(_settings, _database);
+        form.ShowDialog();
     }
 
     private void RequestExit()
     {
-        if (!_exitPasswordVerifier.IsPasswordRequired)
+        if (RequestPassword("close 1984"))
         {
             ExitThread();
-            return;
+        }
+    }
+
+    private bool RequestPassword(string actionName)
+    {
+        if (!_passwordVerifier.IsPasswordRequired)
+        {
+            return true;
         }
 
-        using var dialog = new ExitPasswordDialog(_settings.ProductName);
+        using var dialog = new ExitPasswordDialog(_settings.ProductName, actionName);
         if (dialog.ShowDialog() != DialogResult.OK)
         {
-            return;
+            return false;
         }
 
-        if (_exitPasswordVerifier.Verify(dialog.Password))
+        if (_passwordVerifier.Verify(dialog.Password))
         {
-            ExitThread();
-            return;
+            return true;
         }
 
-        MessageBox.Show("Invalid exit password.", _settings.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        MessageBox.Show("Invalid password.", _settings.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        return false;
     }
 
     protected override void ExitThreadCore()

@@ -14,6 +14,18 @@ internal static class Program
         ApplicationConfiguration.Initialize();
 
         var settings = AppSettings.LoadDefault();
+        if (settings.IsFirstRun)
+        {
+            using var setupForm = new FirstRunSetupForm(settings.ProductName);
+            if (setupForm.ShowDialog() != DialogResult.OK)
+            {
+                return;
+            }
+
+            settings = settings.WithAccessPassword(setupForm.Password);
+            settings.Save();
+        }
+
         Directory.CreateDirectory(settings.DataDirectory);
         Directory.CreateDirectory(settings.ScreenshotDirectory);
         Directory.CreateDirectory(settings.ReportDirectory);
@@ -24,7 +36,7 @@ internal static class Program
         using var activityTracker = new ActivityTracker(database, settings);
         using var browserReceiver = new BrowserActivityReceiver(database, settings);
         using var reportGenerator = new HtmlReportGenerator(database, settings);
-        using var trayApp = new TrayApplicationContext(settings, activityTracker, browserReceiver, reportGenerator);
+        using var trayApp = new TrayApplicationContext(settings, database, activityTracker, browserReceiver, reportGenerator);
 
         activityTracker.Start();
         browserReceiver.Start();
