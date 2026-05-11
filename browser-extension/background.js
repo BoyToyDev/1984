@@ -1,4 +1,5 @@
 const endpoint = 'http://127.0.0.1:39877/browser-activity';
+const heartbeatEndpoint = 'http://127.0.0.1:39877/browser-heartbeat';
 let current = null;
 
 function browserName() {
@@ -52,6 +53,22 @@ async function updateCurrent() {
   };
 }
 
+async function sendHeartbeat() {
+  try {
+    await fetch(heartbeatEndpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'heartbeat',
+        browser: browserName(),
+        extensionVersion: chrome.runtime.getManifest().version,
+        timestamp: Date.now()
+      })
+    });
+  } catch (_) {
+  }
+}
+
 chrome.tabs.onActivated.addListener(() => updateCurrent());
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (tab.active && (changeInfo.status === 'complete' || changeInfo.title || changeInfo.url)) {
@@ -61,4 +78,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.windows.onFocusChanged.addListener(() => updateCurrent());
 chrome.runtime.onStartup.addListener(() => updateCurrent());
 chrome.runtime.onInstalled.addListener(() => updateCurrent());
+chrome.runtime.onStartup.addListener(() => sendHeartbeat());
+chrome.runtime.onInstalled.addListener(() => sendHeartbeat());
 setInterval(() => updateCurrent(), 60000);
+setInterval(() => sendHeartbeat(), 60000);

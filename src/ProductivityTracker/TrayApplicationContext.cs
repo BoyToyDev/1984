@@ -65,7 +65,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        using var form = new MainForm(_settings, _database);
+        using var form = new MainForm(_settings, _database, _browserReceiver, _reportGenerator);
         form.ShowDialog();
     }
 

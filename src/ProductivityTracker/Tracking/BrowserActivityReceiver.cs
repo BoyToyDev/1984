@@ -12,12 +12,15 @@ internal sealed class BrowserActivityReceiver : IDisposable
     private readonly AppSettings _settings;
     private TcpListener? _listener;
     private CancellationTokenSource? _cancellation;
+    private DateTimeOffset? _lastPluginSeenAt;
 
     public BrowserActivityReceiver(TrackerDatabase database, AppSettings settings)
     {
         _database = database;
         _settings = settings;
     }
+
+    public DateTimeOffset? LastPluginSeenAt => _lastPluginSeenAt;
 
     public void Start()
     {
@@ -89,7 +92,8 @@ internal sealed class BrowserActivityReceiver : IDisposable
                 return;
             }
 
-            if (!string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase) || path != "/browser-activity")
+            if (!string.Equals(method, "POST", StringComparison.OrdinalIgnoreCase)
+                || (path != "/browser-activity" && path != "/browser-heartbeat"))
             {
                 await WriteResponseAsync(stream, 404, string.Empty);
                 return;
@@ -114,6 +118,13 @@ internal sealed class BrowserActivityReceiver : IDisposable
             }
 
             await using var bodyStream = new MemoryStream(Encoding.UTF8.GetBytes(body, 0, read));
+            if (path == "/browser-heartbeat")
+            {
+                _lastPluginSeenAt = DateTimeOffset.Now;
+                await WriteResponseAsync(stream, 204, string.Empty);
+                return;
+            }
+
             var payload = await JsonSerializer.DeserializeAsync<BrowserActivityPayload>(
                 bodyStream,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
@@ -138,6 +149,7 @@ internal sealed class BrowserActivityReceiver : IDisposable
                 payload.Browser ?? "unknown",
                 payload.Url,
                 payload.Title ?? string.Empty));
+            _lastPluginSeenAt = DateTimeOffset.Now;
 
             await WriteResponseAsync(stream, 204, string.Empty);
         }
