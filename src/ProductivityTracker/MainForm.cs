@@ -253,7 +253,8 @@ internal sealed class MainForm : Form
             ORDER BY started_at DESC
             LIMIT 1000;
             """, parameters));
-        RenameColumns(table, loc, new() {
+        grid.DataSource = table;
+        LocalizeGrid(grid, loc, new() {
             ["windows_user"] = "col_user",
             ["process_name"] = "col_process_name",
             ["window_title"] = "col_window_title",
@@ -261,7 +262,7 @@ internal sealed class MainForm : Form
             ["duration_seconds"] = "col_duration",
             ["daily_total_seconds"] = "col_daily_total"
         });
-        grid.DataSource = table;
+        FormatGridDates(grid);
     }
 
     private void LoadWebHistory(DataGridView grid, DateTime from, DateTime to, string search, string? source)
@@ -284,7 +285,8 @@ internal sealed class MainForm : Form
             ORDER BY started_at DESC
             LIMIT 1000;
             """, parameters));
-        RenameColumns(table, loc, new() {
+        grid.DataSource = table;
+        LocalizeGrid(grid, loc, new() {
             ["windows_user"] = "col_user",
             ["browser"] = "col_browser",
             ["title"] = "col_window_title",
@@ -294,7 +296,7 @@ internal sealed class MainForm : Form
             ["duration_seconds"] = "col_duration",
             ["daily_total_seconds"] = "col_daily_total"
         });
-        grid.DataSource = table;
+        FormatGridDates(grid);
     }
 
     private void LoadScreenshots(DataGridView grid, DateTime from, DateTime to, string search, string? source)
@@ -310,26 +312,39 @@ internal sealed class MainForm : Form
             ORDER BY captured_at DESC
             LIMIT 1000;
             """, parameters));
-        RenameColumns(table, loc, new() {
-            ["windows_user"] = "col_user",
-            ["active_process"] = "col_process_name",
-            ["active_window_title"] = "col_window_title",
-            ["captured_at"] = "col_captured_at"
-        });
         grid.DataSource = table;
         if (grid.Columns["file_path"] is DataGridViewColumn col)
         {
             col.Visible = false;
         }
+        LocalizeGrid(grid, loc, new() {
+            ["windows_user"] = "col_user",
+            ["active_process"] = "col_process_name",
+            ["active_window_title"] = "col_window_title",
+            ["captured_at"] = "col_captured_at"
+        });
+        FormatGridDates(grid);
     }
 
-    private static void RenameColumns(DataTable table, string locale, Dictionary<string, string> mapping)
+    private static void FormatGridDates(DataGridView grid)
     {
-        foreach (var (internalName, locKey) in mapping)
+        var dateColumns = new HashSet<string> { "started_at", "ended_at", "captured_at" };
+        foreach (DataGridViewColumn col in grid.Columns)
         {
-            if (table.Columns[internalName] is DataColumn col)
+            if (dateColumns.Contains(col.DataPropertyName))
             {
-                col.ColumnName = Loc.Get(locKey, locale);
+                col.DefaultCellStyle.Format = "dd.MM.yyyy HH:mm:ss";
+            }
+        }
+    }
+
+    private static void LocalizeGrid(DataGridView grid, string locale, Dictionary<string, string> mapping)
+    {
+        foreach (DataGridViewColumn col in grid.Columns)
+        {
+            if (mapping.TryGetValue(col.DataPropertyName, out var locKey))
+            {
+                col.HeaderText = Loc.Get(locKey, locale);
             }
         }
     }
@@ -573,9 +588,11 @@ internal sealed class MainForm : Form
             return table;
         }
 
+        var dateColumns = new HashSet<string> { "started_at", "ended_at", "captured_at" };
         foreach (var key in rows[0].Keys)
         {
-            table.Columns.Add(key);
+            var type = dateColumns.Contains(key) ? typeof(DateTime) : typeof(object);
+            table.Columns.Add(key, type);
         }
 
         foreach (var row in rows)
@@ -584,7 +601,15 @@ internal sealed class MainForm : Form
             var i = 0;
             foreach (var key in row.Keys)
             {
-                values[i++] = row[key];
+                var val = row[key];
+                if (dateColumns.Contains(key) && val is string s && DateTime.TryParse(s, out var dt))
+                {
+                    values[i++] = dt;
+                }
+                else
+                {
+                    values[i++] = val;
+                }
             }
             table.Rows.Add(values);
         }
