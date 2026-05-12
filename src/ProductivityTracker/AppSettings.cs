@@ -9,7 +9,7 @@ public sealed class AppSettings
     public string InstallDirectory { get; init; } = AppContext.BaseDirectory;
     public string ConfigPath => Path.Combine(InstallDirectory, "1984.config.json");
     public string DataDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "1984");
-    public string DatabasePath => Path.Combine(DataDirectory, "tracker.db");
+    public string DatabasePath { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "1984", "tracker.db");
     public string ScreenshotDirectory { get; init; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "1984", "screenshots");
     public string ReportDirectory => Path.Combine(DataDirectory, "reports");
     public TimeSpan ActiveWindowPollInterval { get; init; } = TimeSpan.FromSeconds(2);
@@ -21,6 +21,8 @@ public sealed class AppSettings
     public bool QuietMode { get; init; } = true;
     public bool ShowNotifications { get; init; } = false;
     public int BrowserPluginHeartbeatIntervalSeconds { get; init; } = 60;
+    public string Locale { get; init; } = "en";
+    public bool AutoStart { get; init; } = true;
     public bool AllowExitWithoutPassword { get; init; } = true;
     public string? ExitPasswordHashBase64 { get; init; }
     public string? ExitPasswordSaltBase64 { get; init; }
@@ -50,6 +52,7 @@ public sealed class AppSettings
             CompanyName = config.CompanyName ?? defaults.CompanyName,
             InstallDirectory = defaults.InstallDirectory,
             DataDirectory = ExpandPath(config.DataDirectory) ?? defaults.DataDirectory,
+            DatabasePath = ExpandPath(config.DatabasePath) ?? defaults.DatabasePath,
             ScreenshotDirectory = ExpandPath(config.ScreenshotDirectory) ?? Path.Combine(ExpandPath(config.DataDirectory) ?? defaults.DataDirectory, "screenshots"),
             ActiveWindowPollInterval = TimeSpan.FromSeconds(config.ActiveWindowPollIntervalSeconds ?? defaults.ActiveWindowPollInterval.TotalSeconds),
             ScreenshotInterval = TimeSpan.FromSeconds(config.ScreenshotIntervalSeconds ?? defaults.ScreenshotInterval.TotalSeconds),
@@ -60,6 +63,8 @@ public sealed class AppSettings
             QuietMode = config.QuietMode ?? defaults.QuietMode,
             ShowNotifications = config.ShowNotifications ?? defaults.ShowNotifications,
             BrowserPluginHeartbeatIntervalSeconds = config.BrowserPluginHeartbeatIntervalSeconds ?? defaults.BrowserPluginHeartbeatIntervalSeconds,
+            Locale = config.Locale ?? defaults.Locale,
+            AutoStart = config.AutoStart ?? defaults.AutoStart,
             AllowExitWithoutPassword = config.AllowExitWithoutPassword ?? defaults.AllowExitWithoutPassword,
             ExitPasswordHashBase64 = config.ExitPasswordHashBase64,
             ExitPasswordSaltBase64 = config.ExitPasswordSaltBase64,
@@ -70,26 +75,53 @@ public sealed class AppSettings
     public AppSettings WithAccessPassword(string password)
     {
         var hash = PasswordHash.Create(password, ExitPasswordIterations);
+        return With(
+            allowExitWithoutPassword: false,
+            exitPasswordHashBase64: hash.HashBase64,
+            exitPasswordSaltBase64: hash.SaltBase64,
+            exitPasswordIterations: hash.Iterations);
+    }
+
+    public AppSettings With(
+        string? screenshotDirectory = null,
+        TimeSpan? screenshotInterval = null,
+        TimeSpan? idleThreshold = null,
+        int? retentionDays = null,
+        int? screenshotRetentionDays = null,
+        bool? quietMode = null,
+        bool? showNotifications = null,
+        int? browserPluginHeartbeatIntervalSeconds = null,
+        bool? allowExitWithoutPassword = null,
+        string? databasePath = null,
+        string? locale = null,
+        bool? autoStart = null,
+        string? exitPasswordHashBase64 = null,
+        string? exitPasswordSaltBase64 = null,
+        int? exitPasswordIterations = null)
+    {
         return new AppSettings
         {
             ProductName = ProductName,
             CompanyName = CompanyName,
             InstallDirectory = InstallDirectory,
             DataDirectory = DataDirectory,
-            ScreenshotDirectory = ScreenshotDirectory,
+            DatabasePath = databasePath ?? DatabasePath,
+            ScreenshotDirectory = screenshotDirectory ?? ScreenshotDirectory,
             ActiveWindowPollInterval = ActiveWindowPollInterval,
-            ScreenshotInterval = ScreenshotInterval,
-            IdleThreshold = IdleThreshold,
+            ScreenshotInterval = screenshotInterval ?? ScreenshotInterval,
+            IdleThreshold = idleThreshold ?? IdleThreshold,
             BrowserReceiverPort = BrowserReceiverPort,
-            RetentionDays = RetentionDays,
-            ScreenshotRetentionDays = ScreenshotRetentionDays,
-            QuietMode = QuietMode,
-            ShowNotifications = ShowNotifications,
-            BrowserPluginHeartbeatIntervalSeconds = BrowserPluginHeartbeatIntervalSeconds,
-            AllowExitWithoutPassword = false,
-            ExitPasswordHashBase64 = hash.HashBase64,
-            ExitPasswordSaltBase64 = hash.SaltBase64,
-            ExitPasswordIterations = hash.Iterations
+            RetentionDays = retentionDays ?? RetentionDays,
+            ScreenshotRetentionDays = screenshotRetentionDays ?? ScreenshotRetentionDays,
+            QuietMode = quietMode ?? QuietMode,
+            ShowNotifications = showNotifications ?? ShowNotifications,
+            BrowserPluginHeartbeatIntervalSeconds = browserPluginHeartbeatIntervalSeconds ?? BrowserPluginHeartbeatIntervalSeconds,
+            Locale = locale ?? Locale,
+            AutoStart = autoStart ?? AutoStart,
+            AllowExitWithoutPassword = allowExitWithoutPassword ?? AllowExitWithoutPassword,
+            ExitPasswordHashBase64 = exitPasswordHashBase64 ?? ExitPasswordHashBase64,
+            ExitPasswordSaltBase64 = exitPasswordSaltBase64 ?? ExitPasswordSaltBase64,
+            ExitPasswordIterations = exitPasswordIterations ?? ExitPasswordIterations
         };
     }
 
@@ -100,6 +132,7 @@ public sealed class AppSettings
             ProductName = ProductName,
             CompanyName = CompanyName,
             DataDirectory = "%APPDATA%\\1984",
+            DatabasePath = DatabasePath,
             ScreenshotDirectory = ScreenshotDirectory,
             ActiveWindowPollIntervalSeconds = ActiveWindowPollInterval.TotalSeconds,
             ScreenshotIntervalSeconds = ScreenshotInterval.TotalSeconds,
@@ -110,6 +143,8 @@ public sealed class AppSettings
             QuietMode = QuietMode,
             ShowNotifications = ShowNotifications,
             BrowserPluginHeartbeatIntervalSeconds = BrowserPluginHeartbeatIntervalSeconds,
+            Locale = Locale,
+            AutoStart = AutoStart,
             AllowExitWithoutPassword = AllowExitWithoutPassword,
             ExitPasswordHashBase64 = ExitPasswordHashBase64,
             ExitPasswordSaltBase64 = ExitPasswordSaltBase64,
@@ -135,6 +170,7 @@ public sealed class AppSettings
         public string? ProductName { get; set; }
         public string? CompanyName { get; set; }
         public string? DataDirectory { get; set; }
+        public string? DatabasePath { get; set; }
         public string? ScreenshotDirectory { get; set; }
         public double? ActiveWindowPollIntervalSeconds { get; set; }
         public double? ScreenshotIntervalSeconds { get; set; }
@@ -145,6 +181,8 @@ public sealed class AppSettings
         public bool? QuietMode { get; set; }
         public bool? ShowNotifications { get; set; }
         public int? BrowserPluginHeartbeatIntervalSeconds { get; set; }
+        public string? Locale { get; set; }
+        public bool? AutoStart { get; set; }
         public bool? AllowExitWithoutPassword { get; set; }
         public string? ExitPasswordHashBase64 { get; set; }
         public string? ExitPasswordSaltBase64 { get; set; }

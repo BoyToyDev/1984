@@ -146,8 +146,11 @@ internal sealed class BrowserActivityReceiver : IDisposable
             _database.InsertBrowserActivity(new BrowserActivityRecord(
                 startedAt,
                 endedAt,
+                Environment.UserName,
+                "plugin",
                 payload.Browser ?? "unknown",
                 payload.Url,
+                GetDomain(payload.Url),
                 payload.Title ?? string.Empty));
             _lastPluginSeenAt = DateTimeOffset.Now;
 
@@ -189,6 +192,13 @@ internal sealed class BrowserActivityReceiver : IDisposable
         {
             await stream.WriteAsync(bodyBytes);
         }
+    }
+
+    private static string GetDomain(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            ? uri.Host
+            : string.Empty;
     }
 
     public void Dispose()

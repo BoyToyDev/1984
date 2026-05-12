@@ -4,9 +4,19 @@ let current = null;
 
 function browserName() {
   const userAgent = navigator.userAgent.toLowerCase();
+  if (userAgent.includes('firefox/')) return 'Firefox';
   if (userAgent.includes('edg/')) return 'Edge';
   if (userAgent.includes('chrome/')) return 'Chrome';
+  if (userAgent.includes('brave/')) return 'Brave';
+  if (userAgent.includes('opera/')) return 'Opera';
   return 'Chromium';
+}
+
+function isInternalUrl(url) {
+  return url.startsWith('chrome://')
+      || url.startsWith('edge://')
+      || url.startsWith('about:')
+      || url.startsWith('moz-extension://');
 }
 
 async function getActiveTab() {
@@ -37,20 +47,23 @@ async function flush(endTime) {
 }
 
 async function updateCurrent() {
-  const now = Date.now();
-  await flush(now);
-
   const tab = await getActiveTab();
-  if (!tab || !tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('edge://')) {
-    current = null;
+  if (!tab || !tab.url || tab.url === 'about:blank' || isInternalUrl(tab.url)) {
     return;
   }
 
-  current = {
-    url: tab.url,
-    title: tab.title || '',
-    startedAtUnixMs: now
-  };
+  const now = Date.now();
+
+  if (!current || current.url !== tab.url) {
+    await flush(now);
+    current = {
+      url: tab.url,
+      title: tab.title || '',
+      startedAtUnixMs: now
+    };
+  } else if (tab.title && tab.title !== current.title) {
+    current.title = tab.title;
+  }
 }
 
 async function sendHeartbeat() {

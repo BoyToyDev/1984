@@ -89,10 +89,24 @@ internal sealed class ActivityTracker : IDisposable
         _database.InsertAppActivity(new AppActivityRecord(
             _currentStartedAt,
             endedAt,
+            Environment.UserName,
             _current.ProcessName,
             _current.ExecutablePath,
             _current.WindowTitle,
             _current.IsIdle));
+
+        if (TryGetBrowserName(_current.ProcessName, out var browserName))
+        {
+            _database.InsertBrowserActivity(new BrowserActivityRecord(
+                _currentStartedAt,
+                endedAt,
+                Environment.UserName,
+                "fallback_window_title",
+                browserName,
+                string.Empty,
+                string.Empty,
+                _current.WindowTitle));
+        }
     }
 
     private static bool IsSameActivity(ActiveWindowSnapshot left, ActiveWindowSnapshot right)
@@ -100,6 +114,27 @@ internal sealed class ActivityTracker : IDisposable
         return string.Equals(left.ProcessName, right.ProcessName, StringComparison.OrdinalIgnoreCase)
             && string.Equals(left.WindowTitle, right.WindowTitle, StringComparison.Ordinal)
             && left.IsIdle == right.IsIdle;
+    }
+
+    private static bool TryGetBrowserName(string processName, out string browserName)
+    {
+        var normalized = Path.GetFileNameWithoutExtension(processName).ToLowerInvariant();
+        browserName = normalized switch
+        {
+            "chrome" => "Chrome",
+            "msedge" => "Edge",
+            "firefox" => "Firefox",
+            "brave" => "Brave",
+            "opera" => "Opera",
+            _ => string.Empty
+        };
+
+        return browserName.Length > 0;
+    }
+
+    public void ApplySettings(AppSettings settings)
+    {
+        _screenshotTimer.Change(settings.ScreenshotInterval, settings.ScreenshotInterval);
     }
 
     public void Dispose()

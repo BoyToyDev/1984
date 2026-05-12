@@ -30,6 +30,7 @@ public sealed class TrackerDatabase : IDisposable
         ExecuteNonQuery("""
             CREATE TABLE IF NOT EXISTS app_activity (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                windows_user TEXT NOT NULL DEFAULT '',
                 started_at TEXT NOT NULL,
                 ended_at TEXT NOT NULL,
                 duration_seconds INTEGER NOT NULL,
@@ -43,11 +44,14 @@ public sealed class TrackerDatabase : IDisposable
         ExecuteNonQuery("""
             CREATE TABLE IF NOT EXISTS browser_activity (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                windows_user TEXT NOT NULL DEFAULT '',
+                source TEXT NOT NULL DEFAULT 'plugin',
                 started_at TEXT NOT NULL,
                 ended_at TEXT NOT NULL,
                 duration_seconds INTEGER NOT NULL,
                 browser TEXT NOT NULL,
                 url TEXT NOT NULL,
+                domain TEXT NOT NULL DEFAULT '',
                 title TEXT NOT NULL
             );
             """);
@@ -55,6 +59,7 @@ public sealed class TrackerDatabase : IDisposable
         ExecuteNonQuery("""
             CREATE TABLE IF NOT EXISTS screenshots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                windows_user TEXT NOT NULL DEFAULT '',
                 captured_at TEXT NOT NULL,
                 file_path TEXT NOT NULL,
                 active_process TEXT,
@@ -63,8 +68,24 @@ public sealed class TrackerDatabase : IDisposable
             );
             """);
 
+        ExecuteNonQuery("""
+            CREATE TABLE IF NOT EXISTS app_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """);
+
+        EnsureColumn("app_activity", "windows_user", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn("browser_activity", "windows_user", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn("browser_activity", "source", "TEXT NOT NULL DEFAULT 'plugin'");
+        EnsureColumn("browser_activity", "domain", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn("screenshots", "windows_user", "TEXT NOT NULL DEFAULT ''");
         ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_app_activity_started_at ON app_activity(started_at);");
+        ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_app_activity_windows_user ON app_activity(windows_user);");
         ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_browser_activity_started_at ON browser_activity(started_at);");
+        ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_browser_activity_domain ON browser_activity(domain);");
+        ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_browser_activity_source ON browser_activity(source);");
         ExecuteNonQuery("CREATE INDEX IF NOT EXISTS idx_screenshots_captured_at ON screenshots(captured_at);");
     }
 
@@ -74,9 +95,10 @@ public sealed class TrackerDatabase : IDisposable
         {
             using var command = _connection.CreateCommand();
             command.CommandText = """
-                INSERT INTO app_activity (started_at, ended_at, duration_seconds, process_name, executable_path, window_title, is_idle)
-                VALUES ($started_at, $ended_at, $duration_seconds, $process_name, $executable_path, $window_title, $is_idle);
+                INSERT INTO app_activity (windows_user, started_at, ended_at, duration_seconds, process_name, executable_path, window_title, is_idle)
+                VALUES ($windows_user, $started_at, $ended_at, $duration_seconds, $process_name, $executable_path, $window_title, $is_idle);
                 """;
+            command.Parameters.AddWithValue("$windows_user", record.WindowsUser);
             command.Parameters.AddWithValue("$started_at", record.StartedAt.ToString("O"));
             command.Parameters.AddWithValue("$ended_at", record.EndedAt.ToString("O"));
             command.Parameters.AddWithValue("$duration_seconds", (long)Math.Max(0, record.Duration.TotalSeconds));
@@ -94,14 +116,17 @@ public sealed class TrackerDatabase : IDisposable
         {
             using var command = _connection.CreateCommand();
             command.CommandText = """
-                INSERT INTO browser_activity (started_at, ended_at, duration_seconds, browser, url, title)
-                VALUES ($started_at, $ended_at, $duration_seconds, $browser, $url, $title);
+                INSERT INTO browser_activity (windows_user, source, started_at, ended_at, duration_seconds, browser, url, domain, title)
+                VALUES ($windows_user, $source, $started_at, $ended_at, $duration_seconds, $browser, $url, $domain, $title);
                 """;
+            command.Parameters.AddWithValue("$windows_user", record.WindowsUser);
+            command.Parameters.AddWithValue("$source", record.Source);
             command.Parameters.AddWithValue("$started_at", record.StartedAt.ToString("O"));
             command.Parameters.AddWithValue("$ended_at", record.EndedAt.ToString("O"));
             command.Parameters.AddWithValue("$duration_seconds", (long)Math.Max(0, record.Duration.TotalSeconds));
             command.Parameters.AddWithValue("$browser", record.Browser);
             command.Parameters.AddWithValue("$url", record.Url);
+            command.Parameters.AddWithValue("$domain", record.Domain);
             command.Parameters.AddWithValue("$title", record.Title);
             command.ExecuteNonQuery();
         }
@@ -113,9 +138,10 @@ public sealed class TrackerDatabase : IDisposable
         {
             using var command = _connection.CreateCommand();
             command.CommandText = """
-                INSERT INTO screenshots (captured_at, file_path, active_process, active_window_title, is_idle)
-                VALUES ($captured_at, $file_path, $active_process, $active_window_title, $is_idle);
+                INSERT INTO screenshots (windows_user, captured_at, file_path, active_process, active_window_title, is_idle)
+                VALUES ($windows_user, $captured_at, $file_path, $active_process, $active_window_title, $is_idle);
                 """;
+            command.Parameters.AddWithValue("$windows_user", record.WindowsUser);
             command.Parameters.AddWithValue("$captured_at", record.CapturedAt.ToString("O"));
             command.Parameters.AddWithValue("$file_path", record.FilePath);
             command.Parameters.AddWithValue("$active_process", (object?)record.ActiveProcess ?? DBNull.Value);
@@ -155,6 +181,36 @@ public sealed class TrackerDatabase : IDisposable
         }
     }
 
+    public void SetState(string key, string value)
+    {
+        lock (_sync)
+        {
+            using var command = _connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO app_state (key, value, updated_at)
+                VALUES ($key, $value, $updated_at)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = excluded.updated_at;
+                """;
+            command.Parameters.AddWithValue("$key", key);
+            command.Parameters.AddWithValue("$value", value);
+            command.Parameters.AddWithValue("$updated_at", DateTimeOffset.Now.ToString("O"));
+            command.ExecuteNonQuery();
+        }
+    }
+
+    public void DeleteScreenshotMetadataOlderThan(DateTimeOffset cutoff)
+    {
+        lock (_sync)
+        {
+            using var command = _connection.CreateCommand();
+            command.CommandText = "DELETE FROM screenshots WHERE captured_at < $cutoff;";
+            command.Parameters.AddWithValue("$cutoff", cutoff.ToString("O"));
+            command.ExecuteNonQuery();
+        }
+    }
+
     private void ExecuteNonQuery(string sql)
     {
         lock (_sync)
@@ -163,6 +219,17 @@ public sealed class TrackerDatabase : IDisposable
             command.CommandText = sql;
             command.ExecuteNonQuery();
         }
+    }
+
+    private void EnsureColumn(string tableName, string columnName, string definition)
+    {
+        var columns = Query($"PRAGMA table_info({tableName});");
+        if (columns.Any(column => string.Equals(Convert.ToString(column["name"]), columnName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        ExecuteNonQuery($"ALTER TABLE {tableName} ADD COLUMN {columnName} {definition};");
     }
 
     public void Dispose() => _connection.Dispose();

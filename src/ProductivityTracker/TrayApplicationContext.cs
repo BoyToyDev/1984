@@ -9,10 +9,11 @@ namespace ProductivityTracker;
 
 internal sealed class TrayApplicationContext : ApplicationContext
 {
-    private readonly AppSettings _settings;
+    private AppSettings _settings;
     private readonly TrackerDatabase _database;
     private readonly ActivityTracker _activityTracker;
     private readonly BrowserActivityReceiver _browserReceiver;
+    private readonly RetentionCleanupService _retentionCleanup;
     private readonly HtmlReportGenerator _reportGenerator;
     private readonly ExitPasswordVerifier _passwordVerifier;
     private readonly NotifyIcon _notifyIcon;
@@ -22,18 +23,20 @@ internal sealed class TrayApplicationContext : ApplicationContext
         TrackerDatabase database,
         ActivityTracker activityTracker,
         BrowserActivityReceiver browserReceiver,
+        RetentionCleanupService retentionCleanup,
         HtmlReportGenerator reportGenerator)
     {
         _settings = settings;
         _database = database;
         _activityTracker = activityTracker;
         _browserReceiver = browserReceiver;
+        _retentionCleanup = retentionCleanup;
         _reportGenerator = reportGenerator;
         _passwordVerifier = new ExitPasswordVerifier(settings);
 
         _notifyIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath)!,
             Text = _settings.ProductName,
             Visible = true,
             ContextMenuStrip = BuildMenu()
@@ -45,9 +48,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private ContextMenuStrip BuildMenu()
     {
+        var loc = _settings.Locale;
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Open application", null, (_, _) => RequestOpenApplication());
-        menu.Items.Add("Close 1984", null, (_, _) => RequestExit());
+        menu.Items.Add(Loc.Get("open_application", loc), null, (_, _) => RequestOpenApplication());
+        menu.Items.Add(Loc.Get("close_app", loc), null, (_, _) => RequestExit());
         return menu;
     }
 
@@ -55,7 +59,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         var exePath = Application.ExecutablePath;
         using var key = Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Run", writable: true);
-        key?.SetValue(_settings.ProductName, $"\"{exePath}\"");
+        if (key is null)
+        {
+            return;
+        }
+
+        if (_settings.AutoStart)
+        {
+            key.SetValue(_settings.ProductName, $"\"{exePath}\"");
+        }
+        else
+        {
+            try { key.DeleteValue(_settings.ProductName, throwOnMissingValue: false); } catch { }
+        }
     }
 
     private void RequestOpenApplication()
@@ -65,8 +81,16 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        using var form = new MainForm(_settings, _database, _browserReceiver, _reportGenerator);
+        using var form = new MainForm(_settings, _database, _browserReceiver, _reportGenerator, OnSettingsChanged);
         form.ShowDialog();
+    }
+
+    private void OnSettingsChanged(AppSettings newSettings)
+    {
+        _settings = newSettings;
+        _activityTracker.ApplySettings(newSettings);
+        _retentionCleanup.RunNow();
+        EnableAutoStart();
     }
 
     private void RequestExit()
@@ -84,7 +108,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return true;
         }
 
-        using var dialog = new ExitPasswordDialog(_settings.ProductName, actionName);
+        using var dialog = new ExitPasswordDialog(_settings.ProductName, actionName, _settings.Locale);
         if (dialog.ShowDialog() != DialogResult.OK)
         {
             return false;
@@ -95,7 +119,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return true;
         }
 
-        MessageBox.Show("Invalid password.", _settings.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        MessageBox.Show(Loc.Get("invalid_password", _settings.Locale), _settings.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         return false;
     }
 
@@ -105,6 +129,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _notifyIcon.Dispose();
         _activityTracker.Dispose();
         _browserReceiver.Dispose();
+        _retentionCleanup.Dispose();
         _reportGenerator.Dispose();
         base.ExitThreadCore();
     }

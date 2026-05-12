@@ -33,6 +33,7 @@ internal sealed class ScreenshotService
 
         _database.InsertScreenshot(new ScreenshotRecord(
             now,
+            Environment.UserName,
             path,
             activeWindow.ProcessName,
             activeWindow.WindowTitle,

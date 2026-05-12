@@ -9,7 +9,7 @@ internal sealed class ExitPasswordDialog : Form
 
     public string Password => _passwordBox.Text;
 
-    public ExitPasswordDialog(string productName, string actionName)
+    public ExitPasswordDialog(string productName, string actionName, string locale = "en")
     {
         Text = productName;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -21,7 +21,7 @@ internal sealed class ExitPasswordDialog : Form
 
         var label = new Label
         {
-            Text = $"Enter password to {actionName}:",
+            Text = Loc.Get("enter_password", locale) + ":",
             AutoSize = true,
             Left = 16,
             Top = 18
@@ -43,7 +43,7 @@ internal sealed class ExitPasswordDialog : Form
 
         var cancelButton = new Button
         {
-            Text = "Cancel",
+            Text = Loc.Get("cancel", locale),
             DialogResult = DialogResult.Cancel,
             Left = 264,
             Width = 80,

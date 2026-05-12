@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "1984 Browser Activity",
+  "version": "0.1.0",
+  "description": "Sends active tab URL/title timestamps to the local 1984 app.",
+  "permissions": [
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:39877/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "1984-browser-activity@local",
+      "strict_min_version": "128.0"
+    }
+  }
+}
