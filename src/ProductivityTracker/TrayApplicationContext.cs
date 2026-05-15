@@ -17,6 +17,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly HtmlReportGenerator _reportGenerator;
     private readonly ExitPasswordVerifier _passwordVerifier;
     private readonly NotifyIcon _notifyIcon;
+    private System.Windows.Forms.Timer? _reportTimer;
 
     public TrayApplicationContext(
         AppSettings settings,
@@ -44,6 +45,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         _notifyIcon.DoubleClick += (_, _) => RequestOpenApplication();
         EnableAutoStart();
+        StartAutoReport();
     }
 
     private ContextMenuStrip BuildMenu()
@@ -91,6 +93,35 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _activityTracker.ApplySettings(newSettings);
         _retentionCleanup.RunNow();
         EnableAutoStart();
+        StartAutoReport();
+    }
+
+    private void StartAutoReport()
+    {
+        _reportTimer?.Stop();
+        _reportTimer?.Dispose();
+        _reportTimer = null;
+
+        if (_settings.ReportAutoIntervalMinutes <= 0)
+        {
+            return;
+        }
+
+        _reportTimer = new System.Windows.Forms.Timer
+        {
+            Interval = (int)TimeSpan.FromMinutes(_settings.ReportAutoIntervalMinutes).TotalMilliseconds
+        };
+        _reportTimer.Tick += (_, _) =>
+        {
+            try
+            {
+                _reportGenerator.GenerateDailyReport(DateOnly.FromDateTime(DateTime.Today));
+            }
+            catch
+            {
+            }
+        };
+        _reportTimer.Start();
     }
 
     private void RequestExit()

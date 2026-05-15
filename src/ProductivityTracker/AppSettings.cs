@@ -23,6 +23,7 @@ public sealed class AppSettings
     public int BrowserPluginHeartbeatIntervalSeconds { get; init; } = 60;
     public string Locale { get; init; } = "en";
     public bool AutoStart { get; init; } = true;
+    public int ReportAutoIntervalMinutes { get; init; } = 60;
     public bool AllowExitWithoutPassword { get; init; } = true;
     public string? ExitPasswordHashBase64 { get; init; }
     public string? ExitPasswordSaltBase64 { get; init; }
@@ -65,6 +66,7 @@ public sealed class AppSettings
             BrowserPluginHeartbeatIntervalSeconds = config.BrowserPluginHeartbeatIntervalSeconds ?? defaults.BrowserPluginHeartbeatIntervalSeconds,
             Locale = config.Locale ?? defaults.Locale,
             AutoStart = config.AutoStart ?? defaults.AutoStart,
+            ReportAutoIntervalMinutes = config.ReportAutoIntervalMinutes ?? defaults.ReportAutoIntervalMinutes,
             AllowExitWithoutPassword = config.AllowExitWithoutPassword ?? defaults.AllowExitWithoutPassword,
             ExitPasswordHashBase64 = config.ExitPasswordHashBase64,
             ExitPasswordSaltBase64 = config.ExitPasswordSaltBase64,
@@ -95,6 +97,7 @@ public sealed class AppSettings
         string? databasePath = null,
         string? locale = null,
         bool? autoStart = null,
+        int? reportAutoIntervalMinutes = null,
         string? exitPasswordHashBase64 = null,
         string? exitPasswordSaltBase64 = null,
         int? exitPasswordIterations = null)
@@ -118,6 +121,7 @@ public sealed class AppSettings
             BrowserPluginHeartbeatIntervalSeconds = browserPluginHeartbeatIntervalSeconds ?? BrowserPluginHeartbeatIntervalSeconds,
             Locale = locale ?? Locale,
             AutoStart = autoStart ?? AutoStart,
+            ReportAutoIntervalMinutes = reportAutoIntervalMinutes ?? ReportAutoIntervalMinutes,
             AllowExitWithoutPassword = allowExitWithoutPassword ?? AllowExitWithoutPassword,
             ExitPasswordHashBase64 = exitPasswordHashBase64 ?? ExitPasswordHashBase64,
             ExitPasswordSaltBase64 = exitPasswordSaltBase64 ?? ExitPasswordSaltBase64,
@@ -145,6 +149,7 @@ public sealed class AppSettings
             BrowserPluginHeartbeatIntervalSeconds = BrowserPluginHeartbeatIntervalSeconds,
             Locale = Locale,
             AutoStart = AutoStart,
+            ReportAutoIntervalMinutes = ReportAutoIntervalMinutes,
             AllowExitWithoutPassword = AllowExitWithoutPassword,
             ExitPasswordHashBase64 = ExitPasswordHashBase64,
             ExitPasswordSaltBase64 = ExitPasswordSaltBase64,
@@ -183,6 +188,7 @@ public sealed class AppSettings
         public int? BrowserPluginHeartbeatIntervalSeconds { get; set; }
         public string? Locale { get; set; }
         public bool? AutoStart { get; set; }
+        public int? ReportAutoIntervalMinutes { get; set; }
         public bool? AllowExitWithoutPassword { get; set; }
         public string? ExitPasswordHashBase64 { get; set; }
         public string? ExitPasswordSaltBase64 { get; set; }

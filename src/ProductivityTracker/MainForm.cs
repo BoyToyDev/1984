@@ -415,7 +415,7 @@ internal sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 3,
-            RowCount = 17,
+            RowCount = 18,
             Padding = new Padding(16),
             AutoScroll = true
         };
@@ -436,6 +436,7 @@ internal sealed class MainForm : Form
         languageBox.Items.AddRange(new object[] { "English", "Русский" });
         languageBox.SelectedIndex = _settings.Locale == "ru" ? 1 : 0;
         var autoStartBox = new CheckBox { Checked = _settings.AutoStart, Text = Loc.Get("autostart", loc), AutoSize = true };
+        var reportAutoBox = new NumericUpDown { Minimum = 0, Maximum = 1440, Value = _settings.ReportAutoIntervalMinutes, Dock = DockStyle.Left };
 
         var row = 0;
         AddSettingRow(panel, row++, Loc.Get("database_path", loc), dbPathBox, CreateBrowseFileButton(dbPathBox, "SQLite databases|*.db|All files|*.*"));
@@ -449,6 +450,7 @@ internal sealed class MainForm : Form
         AddSettingRow(panel, row++, string.Empty, autoStartBox);
         AddSettingRow(panel, row++, string.Empty, quietModeBox);
         AddSettingRow(panel, row++, string.Empty, notificationsBox);
+        AddSettingRow(panel, row++, Loc.Get("report_auto_interval", loc), reportAutoBox);
 
         var saveButton = new Button { Text = Loc.Get("save_settings", loc), Width = 160 };
         saveButton.Click += (_, _) =>
@@ -465,7 +467,8 @@ internal sealed class MainForm : Form
                 showNotifications: notificationsBox.Checked,
                 browserPluginHeartbeatIntervalSeconds: (int)heartbeatBox.Value,
                 locale: newLocale,
-                autoStart: autoStartBox.Checked);
+                autoStart: autoStartBox.Checked,
+                reportAutoIntervalMinutes: (int)reportAutoBox.Value);
             _settings.Save();
             Directory.CreateDirectory(_settings.ScreenshotDirectory);
             _onSettingsChanged?.Invoke(_settings);

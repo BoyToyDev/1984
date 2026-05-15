@@ -86,6 +86,7 @@ internal static class Loc
             ["col_captured_at"] = "Screenshot time",
             ["install_plugin"] = "Install browser plugin",
             ["plugin_install_instructions"] = "Chrome/Edge/Brave/Opera: open extensions page, enable Developer mode, Load unpacked → select 'chromium' folder.\nFirefox: about:debugging → Load Temporary Add-on → select 'firefox/manifest.json'.",
+            ["report_auto_interval"] = "Auto-report interval (min, 0=off)",
         },
         ["ru"] = new()
         {
@@ -169,6 +170,7 @@ internal static class Loc
             ["col_captured_at"] = "Время снимка",
             ["install_plugin"] = "Установить плагин браузера",
             ["plugin_install_instructions"] = "Chrome/Edge/Brave/Opera: откройте страницу расширений, включите режим разработчика, Загрузить распакованное → папка 'chromium'.\nFirefox: about:debugging → Загрузить временное дополнение → 'firefox/manifest.json'.",
+            ["report_auto_interval"] = "Автоотчёт (мин, 0=выкл)",
         }
     };
 
